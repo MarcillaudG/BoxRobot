@@ -14,7 +14,7 @@ public class Robot extends Agent<Storehouse, World>{
 
 	private static final int VIEW_RADIUS = 5;
 
-	public static int MEMORY_SIZE = 20;
+	public static int MEMORY_SIZE = 10;
 
 	private static final int CRITIC = 10;
 
@@ -33,6 +33,8 @@ public class Robot extends Agent<Storehouse, World>{
 	private Area closestBox;
 
 	private Direction currentDirection;
+	
+	private Area previousArea;
 
 	private Map<Area,Integer> memory;
 
@@ -92,6 +94,7 @@ public class Robot extends Agent<Storehouse, World>{
 		this.memory = new HashMap<Area,Integer>(); 
 		this.carryingQueue = new LinkedList<Area>();
 		this.claimQueue = new LinkedList<Area>();
+		this.previousArea = null;
 		Random r = new Random();
 		if(r.nextInt(2)%2==0){
 			this.dx = r.nextInt(29);
@@ -175,6 +178,8 @@ public class Robot extends Agent<Storehouse, World>{
 		}
 	}
 
+	//TODO
+	// Après returning on ne revient pas
 	/**
 	 * If the robot can't go to its objective it will use a random pattern to find a way
 	 */
@@ -188,15 +193,21 @@ public class Robot extends Agent<Storehouse, World>{
 			// Else it try to go toward it
 			else{
 				if(this.modules.contains(Module.COOP)){
-					checkGoBack(1);
+					if(checkFreedom(this.targetsPossible[1]))
+						checkGoBack(1);
+					else
+						checkGoBack(3);
 					if(this.isReturning){
 						if(checkFreedom(this.targetsPossible[3])){
 							this.targetArea = this.targetsPossible[3];
 						}
+						else{
+							if(checkFreedom(this.targetsPossible[1]))
+								this.targetArea = this.targetsPossible[1];
+						}
 					}
 				}
 				if(!this.isReturning){
-					//TODO
 					if(this.dx < World.RELEASE[0]){
 						if(this.modules.contains(Module.MEMORY)){
 							hasATarget = useYourBrain(Direction.RIGHT);
@@ -263,10 +274,17 @@ public class Robot extends Agent<Storehouse, World>{
 			}
 			else{
 				if(this.modules.contains(Module.COOP)){
-					checkGoBack(3);
+					if(checkFreedom(this.targetsPossible[3]))
+						checkGoBack(3);
+					else
+						checkGoBack(1);
 					if(this.isReturning){
 						if(checkFreedom(this.targetsPossible[1])){
 							this.targetArea = this.targetsPossible[1];
+						}
+						else{
+							if(checkFreedom(this.targetsPossible[1]))
+								this.targetArea = this.targetsPossible[1];
 						}
 					}
 				}
@@ -313,19 +331,23 @@ public class Robot extends Agent<Storehouse, World>{
 
 	}
 
-	//TODO
+	/**
+	 * When the robot use the memory module it will use its previous observations to 
+	 * know where to go
+	 * @param d
+	 * 			The direction that it wants to go 
+	 * @return true if a direction is found
+	 */
 	private boolean useYourBrain(Direction d) {
-		boolean hasATarget = false;
-		/*if(this.currentDirection != null){
-			d = this.currentDirection;
-		}*/
 		Queue<Area> tmpQueue = null;
+		if(this.currentDirection == d){
+			this.currentDirection = null;
+		}
 		if(this.isCarrying)
 			tmpQueue = this.carryingQueue;
 		else
 			tmpQueue = this.claimQueue;
 		Double[] prob = {0.0,0.0,0.0,0.0};
-
 		// We define the first probabilities 
 		switch(d){
 		case RIGHT:
@@ -354,34 +376,41 @@ public class Robot extends Agent<Storehouse, World>{
 			if(!this.checkFreedom(this.targetsPossible[i])){
 				prob[i] = -1.0;
 			}
+			if(this.targetsPossible[i] == this.previousArea && prob[i] != -1.0){
+				prob[i] = 10.0;
+			}
 		}
 		switch(d){
 		case RIGHT:
-			if(prob[1] == -1.0 && this.currentDirection != null && this.currentDirection != d)
+			if(prob[1] == -1.0 && this.currentDirection != null && this.currentDirection != d){
 				return this.useYourBrain(this.currentDirection);
+			}
 			break;
 		case LEFT:
-			if(prob[3] == -1.0 && this.currentDirection != null && this.currentDirection != d)
+			if(prob[3] == -1.0 && this.currentDirection != null && this.currentDirection != d){
 				return this.useYourBrain(this.currentDirection);
+			}
 			break;
 		case UP:
-			if(prob[0] == -1.0 && this.currentDirection != null && this.currentDirection != d)
+			if(prob[0] == -1.0 && this.currentDirection != null && this.currentDirection != d){
 				return this.useYourBrain(this.currentDirection);
+			}
 			break;
 		case DOWN:
-			if(prob[2] == -1.0 && this.currentDirection != null && this.currentDirection != d)
+			if(prob[2] == -1.0 && this.currentDirection != null && this.currentDirection != d){
 				return this.useYourBrain(this.currentDirection);
+			}
 			break;
 		}
 
 
-		// Now we look for all critics zone
+		// Now we look for all critics zone and calculate the proba
 		//The zone above
 		for(int y = 0; y < VIEW_RADIUS; y++){
 			for(int x = y; x <= 2*VIEW_RADIUS-y; x++){
 				if(tmpQueue.contains(this.view[y][x])){
 					if(y != VIEW_RADIUS && x != VIEW_RADIUS)
-						prob[0] -= (10/(Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x)));
+						prob[0] /= (Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x));
 				}
 			}
 		}
@@ -390,7 +419,7 @@ public class Robot extends Agent<Storehouse, World>{
 			for(int y = x; y >= x - VIEW_RADIUS ; y--){
 				if(tmpQueue.contains(this.view[y][x])){
 					if(y != VIEW_RADIUS && x != VIEW_RADIUS)
-						prob[1] -= (10/(Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x)));
+						prob[1] /= (Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x));
 				}
 			}
 		}
@@ -399,7 +428,7 @@ public class Robot extends Agent<Storehouse, World>{
 			for(int x = y; x >= y - VIEW_RADIUS; x--){
 				if(tmpQueue.contains(this.view[y][x])){
 					if(y != VIEW_RADIUS && x != VIEW_RADIUS)
-						prob[2] -= (10/(Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x)));
+						prob[2] /= (Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x));
 				}
 			}
 		}
@@ -408,42 +437,33 @@ public class Robot extends Agent<Storehouse, World>{
 			for(int y = x; y <= 2*VIEW_RADIUS-x; y++){
 				if(tmpQueue.contains(this.view[y][x])){
 					if(y != VIEW_RADIUS && x != VIEW_RADIUS)
-						prob[3] -= (10/(Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x)));
+						prob[3] /= (Math.abs(VIEW_RADIUS-y)+Math.abs(VIEW_RADIUS-x));
 				}
 			}
 		}
 
-		switch(d){
-		case RIGHT:
-			if(prob[1]==100.0){
-				if( checkFreedom(this.targetsPossible[1])){
-					this.targetArea = this.targetsPossible[1];
-					this.currentDirection = null;
-					return true;
-				}
-			}
-			break;
-		case LEFT:
-			if(prob[3]==100.0 && checkFreedom(this.targetsPossible[3])){
-				this.targetArea = this.targetsPossible[3];
-				this.currentDirection = null;
+
+		if(prob[1]==100.0){
+			if( checkFreedom(this.targetsPossible[1])){
+				this.targetArea = this.targetsPossible[1];
+				this.currentDirection = Direction.RIGHT;
 				return true;
 			}
-			break;
-		case UP:
-			if(prob[0]==100.0 && checkFreedom(this.targetsPossible[0])){
-				this.targetArea = this.targetsPossible[0];
-				this.currentDirection = null;
-				return true;
-			}
-			break;
-		case DOWN:
-			if(prob[2]==100.0 && checkFreedom(this.targetsPossible[2])){
-				this.targetArea = this.targetsPossible[2];
-				this.currentDirection = null;
-				return true;
-			}
-			break;
+		}
+		if(prob[3]==100.0 && checkFreedom(this.targetsPossible[3])){
+			this.targetArea = this.targetsPossible[3];
+			this.currentDirection = Direction.LEFT;
+			return true;
+		}
+		if(prob[0]==100.0 && checkFreedom(this.targetsPossible[0])){
+			this.targetArea = this.targetsPossible[0];
+			this.currentDirection = Direction.UP;
+			return true;
+		}
+		if(prob[2]==100.0 && checkFreedom(this.targetsPossible[2])){
+			this.targetArea = this.targetsPossible[2];
+			this.currentDirection = Direction.DOWN;
+			return true;
 		}
 
 		List<Double> borne = new ArrayList<Double>();
@@ -455,21 +475,25 @@ public class Robot extends Agent<Storehouse, World>{
 				borne.add(prob[i]);
 			}
 		}
-		if(sumProb != 0){
+		int sumProbInt = (int)sumProb;
+		if(sumProbInt > 0){
 			Random r = new Random();
-			int result = r.nextInt((int) sumProb);
+			int result = r.nextInt((int) sumProbInt);
 			int indBorne = 0;
-			System.out.println("Sumprob : "+ sumProb + " Result : "+result);
 			if(result >=0 && borne.size()>0){
 				if(prob[0] > 0){
 					if(result < borne.get(indBorne)){
 						this.targetArea = this.targetsPossible[0];
+						if(this.opposeTO(Direction.UP,d))
+								this.addToQueue(this.currentArea);
 						this.currentDirection = Direction.UP;
 						return true;
 					}
 				}
 				if(prob[1]>0){
-					if(result >= borne.get(indBorne) && (borne.size() <= indBorne || result < borne.get(indBorne)+1) ){
+					if(result >= borne.get(indBorne) && (borne.size() <= indBorne || result < borne.get(indBorne+1) )){
+						if(this.opposeTO(Direction.RIGHT,d))
+							this.addToQueue(this.currentArea);
 						this.targetArea = this.targetsPossible[1];
 						this.currentDirection = Direction.RIGHT;
 						return true;
@@ -477,7 +501,9 @@ public class Robot extends Agent<Storehouse, World>{
 					indBorne++;
 				}
 				if( prob[2]>0){ 
-					if(result >= borne.get(indBorne) && (borne.size() <= indBorne || result < borne.get(indBorne)+1) ){
+					if(result >= borne.get(indBorne) && (borne.size() <= indBorne || result < borne.get(indBorne+1) )){
+						if(this.opposeTO(Direction.DOWN,d))
+							this.addToQueue(this.currentArea);
 						this.targetArea = this.targetsPossible[2];
 						this.currentDirection = Direction.DOWN;
 						return true;
@@ -485,7 +511,9 @@ public class Robot extends Agent<Storehouse, World>{
 					indBorne++;
 				}
 				if(prob[3]>0){
-					if(result < borne.get(indBorne)){
+					if(result <= borne.get(indBorne)){
+						if(this.opposeTO(Direction.LEFT,d))
+							this.addToQueue(this.currentArea);
 						this.targetArea = this.targetsPossible[3];
 						this.currentDirection = Direction.LEFT;
 						return true;
@@ -516,6 +544,10 @@ public class Robot extends Agent<Storehouse, World>{
 								this.isReturning = true;
 						}
 					}
+					else{
+						if(!checkFreedom(this.targetsPossible[target]))
+							this.isReturning = true;
+					}
 				}
 				if(this.isReturning){
 					if(!checkFreedom(this.targetsPossible[1]) && !checkFreedom(this.targetsPossible[3])){
@@ -540,6 +572,10 @@ public class Robot extends Agent<Storehouse, World>{
 							if(agentsInArea[0].isReturning)
 								this.isReturning = true;
 						}
+					}
+					else{
+						if(!checkFreedom(this.targetsPossible[target]))
+							this.isReturning = true;
 					}
 				}
 				if(this.isReturning){
@@ -567,12 +603,17 @@ public class Robot extends Agent<Storehouse, World>{
 							this.isReturning = true;
 					}
 				}
+				else{
+					if(!checkFreedom(this.targetsPossible[target]))
+						this.isReturning = true;
+				}
 				if(this.isReturning){
 					if(!checkFreedom(this.targetsPossible[0]) && !checkFreedom(this.targetsPossible[2])){
 						this.isReturning = true;
 					}
 					else{
 						this.isReturning = false;
+						if(!this.modules.contains(Module.MEMORY))
 						goRandom();
 					}
 				}
@@ -591,12 +632,17 @@ public class Robot extends Agent<Storehouse, World>{
 							this.isReturning = true;
 					}
 				}
+				else{
+					if(!checkFreedom(this.targetsPossible[target]))
+						this.isReturning = true;
+				}
 				if(this.isReturning){
 					if(!checkFreedom(this.targetsPossible[0]) && !checkFreedom(this.targetsPossible[2])){
 						this.isReturning = true;
 					}
 					else{
 						this.isReturning = false;
+						if(!this.modules.contains(Module.MEMORY))
 						goRandom();
 					}
 				}
@@ -939,23 +985,22 @@ public class Robot extends Agent<Storehouse, World>{
 			if(isPicking){
 				pickingBox();
 			}
-			else
+			else{
 				if (targetArea != null) {
 					closestBox = null;
-					moveToward(targetArea);
-					targetArea = null;
+					this.previousArea = this.currentArea;
 					if(this.isReturning && this.modules.contains(Module.MEMORY)){
 						this.addToQueue(this.currentArea);
 					}
+					moveToward(targetArea);
+					targetArea = null;
 				}
 				else{
 					if(this.modules.contains(Module.MEMORY)){
 						this.addToQueue(this.currentArea);
 					}
 				}
-		for(Area ar : this.memory.keySet()){
-			this.memory.replace(ar, this.memory.get(ar)-1);
-		}
+			}
 	}
 
 
@@ -1131,18 +1176,44 @@ public class Robot extends Agent<Storehouse, World>{
 	 */
 	private void addToQueue(Area ar){
 		if(this.isCarrying){
-			if(this.carryingQueue.size()==10){
+			if(this.carryingQueue.size()==MEMORY_SIZE){
 				this.carryingQueue.poll();
 			}
 			this.carryingQueue.offer(ar);
 		}
 		else{
-			if(this.claimQueue.size()==10){
+			if(this.claimQueue.size()==MEMORY_SIZE){
 				this.claimQueue.poll();
 			}
 			this.claimQueue.offer(ar);
 		}
 	}
 
+	private boolean opposeTO(Direction d1, Direction d2){
+		switch(d1){
+		case UP:
+			if(d2 == Direction.DOWN)
+				return true;
+			else 
+				return false;
+		case DOWN:
+			if(d2 == Direction.UP)
+				return true;
+			else 
+				return false;
+		case RIGHT:
+			if(d2 == Direction.LEFT)
+				return true;
+			else 
+				return false;
+		case LEFT:
+			if(d2 == Direction.RIGHT)
+				return true;
+			else 
+				return false;
+			default:
+				return false;
+		}
+	}
 
 }

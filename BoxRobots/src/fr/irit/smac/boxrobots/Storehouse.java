@@ -11,7 +11,7 @@ import fr.irit.smac.boxrobots.Robot.Behavior;
 
 public class Storehouse extends Amas<World>{
 
-	public static final int NB_ROBOT = 10;
+	public static final int NB_ROBOT = 50;
 	
 	private int nbBox;
 	

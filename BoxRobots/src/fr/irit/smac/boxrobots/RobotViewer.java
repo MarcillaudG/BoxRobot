@@ -4,6 +4,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Polygon;
 import java.awt.Stroke;
@@ -19,6 +20,7 @@ import java.util.Random;
 
 import javax.swing.JCheckBox;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JToolBar;
 
 import fr.irit.smac.amak.Agent;
@@ -46,6 +48,10 @@ public class RobotViewer extends DrawableUI{
 	private JCheckBox memory;
 
 	private JCheckBox coop;
+	
+	private JCheckBox toward;
+	
+	private JCheckBox random;
 
 	private Behavior currentBehavior;
 
@@ -58,6 +64,8 @@ public class RobotViewer extends DrawableUI{
 
 
 	protected Storehouse storehouse;
+
+	private JCheckBox manageWall;
 
 	public RobotViewer() {
 		super(Scheduling.UI);
@@ -73,45 +81,17 @@ public class RobotViewer extends DrawableUI{
 		});
 
 
-		MainWindow.addMenuItem("Manage Wall", new ActionListener(){
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				walling = !walling;
-				boxing = false;
-			}
-
-		});
-		MainWindow.addMenuItem("Manage Box", new ActionListener(){
+		MainWindow.addMenuItem("manage box",  new ActionListener(){
 
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				walling = false;
 				boxing = !boxing;
+				if(boxing)
+					walling = false;
 			}
 
 		});
-
-		MainWindow.addMenuItem("Toward",  new ActionListener(){
-
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				storehouse.setBehavior(Behavior.TOWARD);
-				currentBehavior = Behavior.TOWARD;
-			}
-
-		});
-
-		MainWindow.addMenuItem("Random",  new ActionListener(){
-
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				storehouse.setBehavior(Behavior.RANDOM);
-				currentBehavior = Behavior.RANDOM;
-			}
-
-		});
-
-
+		
 		MainWindow.addMenuItem("Add Robot",  new ActionListener(){
 
 			@Override
@@ -206,9 +186,11 @@ public class RobotViewer extends DrawableUI{
 				}
 			}
 		});
+		
 
 		//TODO
 		this.toolbar = new JToolBar();
+		this.toolbar.setLayout(new GridLayout(3, 2));
 
 		this.direct = new JCheckBox("Keep Direction");
 		this.direct.addItemListener(new ItemListener(){
@@ -280,6 +262,60 @@ public class RobotViewer extends DrawableUI{
 
 		});
 		this.toolbar.add(this.coop);
+
+		this.toward = new JCheckBox("toward");
+		this.toward.setSelected(true);
+		this.toward.addItemListener(new ItemListener(){
+
+			@Override
+			public void itemStateChanged(ItemEvent arg0) {
+				if(toward.isSelected()){
+					for (Agent<?, World> agent : robots) {
+						Robot robot = (Robot) agent;
+						robot.setBehavior(Behavior.TOWARD);
+						random.setSelected(false);
+					}
+				}
+			}
+
+		});
+		this.toolbar.add(this.toward);
+
+		this.random = new JCheckBox("random");
+		this.random.addItemListener(new ItemListener(){
+
+			@Override
+			public void itemStateChanged(ItemEvent arg0) {
+				if(random.isSelected()){
+					for (Agent<?, World> agent : robots) {
+						Robot robot = (Robot) agent;
+						robot.setBehavior(Behavior.RANDOM);
+						toward.setSelected(false);
+					}
+				}
+			}
+
+		});
+		this.toolbar.add(this.random);
+		
+
+		this.manageWall = new JCheckBox("Wall");
+		this.manageWall.addItemListener(new ItemListener(){
+
+			@Override
+			public void itemStateChanged(ItemEvent arg0) {
+				if(manageWall.isSelected()){
+					walling = true;
+					boxing = false;
+				}
+				else{
+					walling = false;
+				}
+			}
+
+		});
+		this.toolbar.add(this.manageWall);
+		
 		MainWindow.addToolbar(toolbar);
 	}
 
@@ -288,8 +324,19 @@ public class RobotViewer extends DrawableUI{
 			this.storehouse._removeAgent(agent);
 		}
 		for(int i = 0; i < Storehouse.NB_ROBOT;i++){
-			this.storehouse._addAgent(new Robot(storehouse,Behavior.TOWARD));
+			Robot rob = new Robot(storehouse,Behavior.TOWARD);
+			if(this.random.isSelected())
+				rob.setBehavior(Behavior.RANDOM);
+			if(this.coop.isSelected())
+				rob.addModule(Module.COOP);
+			if(this.memory.isSelected())
+				rob.addModule(Module.MEMORY);
+			if(this.direct.isSelected())
+				rob.addModule(Module.DIRECT);
+			this.storehouse._addAgent(rob);
 		}
+		while(storehouse.getCurrentNbBox() < Storehouse.NB_BOX)
+			storehouse.releaseBox();
 	}
 
 	@Override
