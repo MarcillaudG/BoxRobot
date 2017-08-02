@@ -1,7 +1,9 @@
 package fr.irit.smac.boxrobots;
 
 import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -16,12 +18,17 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.Random;
 
 import javax.swing.JCheckBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JToolBar;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 import fr.irit.smac.amak.Agent;
 import fr.irit.smac.amak.Scheduling;
@@ -54,6 +61,8 @@ public class RobotViewer extends DrawableUI{
 	private JCheckBox random;
 
 	private Behavior currentBehavior;
+	
+	private JSlider slider;
 
 	private ArrayList<Agent<?, World>> robots;
 
@@ -66,6 +75,9 @@ public class RobotViewer extends DrawableUI{
 	protected Storehouse storehouse;
 
 	private JCheckBox manageWall;
+
+	private CriticalViewer criticalWindow;
+
 
 	public RobotViewer() {
 		super(Scheduling.UI);
@@ -148,6 +160,29 @@ public class RobotViewer extends DrawableUI{
 			}
 
 		});
+		
+
+		MainWindow.addMenuItem("Random Maze",  new ActionListener(){
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				reset();
+				storehouse.getEnvironment().randomMaze(2);
+			}
+
+		});
+		
+
+		MainWindow.addMenuItem("Random Path",  new ActionListener(){
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				reset();
+				storehouse.getEnvironment().randomPath(2);
+			}
+
+		});
+		
 		this.getCanvas().addMouseListener(new MouseAdapter(){
 
 			@Override
@@ -188,9 +223,8 @@ public class RobotViewer extends DrawableUI{
 		});
 		
 
-		//TODO
 		this.toolbar = new JToolBar();
-		this.toolbar.setLayout(new GridLayout(3, 2));
+		this.toolbar.setLayout(new GridLayout(4, 2));
 
 		this.direct = new JCheckBox("Keep Direction");
 		this.direct.addItemListener(new ItemListener(){
@@ -240,7 +274,7 @@ public class RobotViewer extends DrawableUI{
 		this.toolbar.add(this.memory);
 
 
-		this.coop = new JCheckBox("Coop");
+		this.coop = new JCheckBox("Mark change");
 		this.coop.addItemListener(new ItemListener(){
 
 			@Override
@@ -263,7 +297,7 @@ public class RobotViewer extends DrawableUI{
 		});
 		this.toolbar.add(this.coop);
 
-		this.toward = new JCheckBox("toward");
+		this.toward = new JCheckBox("Carlo");
 		this.toward.setSelected(true);
 		this.toward.addItemListener(new ItemListener(){
 
@@ -272,7 +306,7 @@ public class RobotViewer extends DrawableUI{
 				if(toward.isSelected()){
 					for (Agent<?, World> agent : robots) {
 						Robot robot = (Robot) agent;
-						robot.setBehavior(Behavior.TOWARD);
+						robot.setBehavior(Behavior.CARLO);
 						random.setSelected(false);
 					}
 				}
@@ -315,8 +349,32 @@ public class RobotViewer extends DrawableUI{
 
 		});
 		this.toolbar.add(this.manageWall);
+
+		final Hashtable<Integer, JLabel> labelTable = new Hashtable<Integer, JLabel>();
+		labelTable.put(new Integer(0), new JLabel("0"));
+		labelTable.put(new Integer(20), new JLabel("20"));
+		labelTable.put(new Integer(40), new JLabel("40"));
+		labelTable.put(new Integer(60), new JLabel("60"));
+		labelTable.put(new Integer(80), new JLabel("80"));
+		labelTable.put(new Integer(100), new JLabel("100"));
 		
+		
+		this.slider = new JSlider(0,100,20);
+		this.slider.addChangeListener(new ChangeListener(){
+
+			@Override
+			public void stateChanged(ChangeEvent arg0) {
+				for(Agent<?, World> agent: robots){
+					((Robot)agent).setMemory(slider.getValue());
+				}
+			}
+			
+		});
+		this.slider.setLabelTable(labelTable);
+		this.slider.setPaintLabels(true);
+		this.toolbar.add(this.slider);
 		MainWindow.addToolbar(toolbar);
+		
 	}
 
 	protected void reset() {
@@ -324,7 +382,7 @@ public class RobotViewer extends DrawableUI{
 			this.storehouse._removeAgent(agent);
 		}
 		for(int i = 0; i < Storehouse.NB_ROBOT;i++){
-			Robot rob = new Robot(storehouse,Behavior.TOWARD);
+			Robot rob = new Robot(storehouse,Behavior.CARLO);
 			if(this.random.isSelected())
 				rob.setBehavior(Behavior.RANDOM);
 			if(this.coop.isSelected())
@@ -369,8 +427,12 @@ public class RobotViewer extends DrawableUI{
 				if(robot.isCarrying()){
 					graphics2d.setStroke(s);
 					graphics2d.setColor(Color.ORANGE);
-					graphics2d.fillOval(((int) discreteToTopContinuous(robot.getX())), (int) discreteToTopContinuous(robot.getY()),
+					graphics2d.setStroke(new BasicStroke(3));
+					graphics2d.drawOval(((int) discreteToTopContinuous(robot.getX())), (int) discreteToTopContinuous(robot.getY()),
 							AREA_SIZE, AREA_SIZE);
+					graphics2d.setColor(Color.BLUE);
+					graphics2d.fillRect((int)discreteToTopContinuous(robot.getX())+2 , (int)discreteToTopContinuous(robot.getY())+2,
+							AREA_SIZE-3, AREA_SIZE-3);
 				}
 				else{
 					graphics2d.setStroke(new BasicStroke(3));
@@ -416,6 +478,24 @@ public class RobotViewer extends DrawableUI{
 				graphics2d.drawLine(World.RELEASE[1]*AREA_SIZE, (World.RELEASE[2]-1)*AREA_SIZE, World.RELEASE[1]*AREA_SIZE, (World.RELEASE[3]+1)*AREA_SIZE);
 			}
 
+		}
+		if(this.memory != null && this.memory.isSelected()){
+			refreshMemory();
+		}
+	}
+
+	private void refreshMemory() {
+		if(this.criticalWindow == null){
+			this.criticalWindow = new CriticalViewer(){
+
+				protected void onInitialConfiguration() {
+					this._storehouse = storehouse;
+				}
+			};
+			this.criticalWindow.start();
+		}
+		else{
+			this.criticalWindow.getScheduler().step();
 		}
 	}
 

@@ -48,7 +48,7 @@ public class Storehouse extends Amas<World>{
 	@Override
 	protected void onInitialAgentsCreation() {
 		for (int i = 0; i < Storehouse.NB_ROBOT;i++){
-			new Robot(this,Behavior.TOWARD);
+			new Robot(this,Behavior.CARLO);
 		}
 	}
 

@@ -21,6 +21,8 @@ public class Area {
 	 * The Y coordinate of the area
 	 */
 	private int y;
+	
+	private int critic;
 
 	private boolean isWall;
 
@@ -38,6 +40,7 @@ public class Area {
 		// Set the position
 		this.x = x;
 		this.y = y;
+		this.critic = 0;
 		Random r = new Random();
 		if(x >= 30 && x < 50 && y >= 1 && y <= 58){
 			isWall = true;
@@ -165,5 +168,17 @@ public class Area {
 		if (y != other.y)
 			return false;
 		return true;
+	}
+	
+	public void addCritic(){
+		this.critic++;
+	}
+	
+	public void removeCritic(){
+		this.critic--;
+	}
+	
+	public int getCritic(){
+		return this.critic;
 	}
 }
