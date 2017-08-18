@@ -79,6 +79,12 @@ public class World extends Environment{
 		return areas[dy][dx];
 	}
 
+	/**
+	 * Create a random maze
+	 * 
+	 * @param nbPath 
+	 * 		The number of corridor
+	 */
 	public void randomMaze(int nbPath){
 		for(int x = 30; x < 50;x++){
 			for(int y = 0; y < 60; y++ ){
@@ -117,6 +123,11 @@ public class World extends Environment{
 		}
 	}
 	
+	/**
+	 * Create the number of corridor given
+	 * 
+	 * @param nbPath
+	 */
 	public void randomPath(int nbPath){
 		for(int x = 30; x < 50;x++){
 			for(int y = 0; y < 60; y++ ){

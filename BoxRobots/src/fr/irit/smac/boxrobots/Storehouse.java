@@ -40,6 +40,11 @@ public class Storehouse extends Amas<World>{
 	}
 	
 
+	/**
+	 * Return the list of Boxs
+	 * 
+	 * @return boxs
+	 */
 	public List<Boxs> getBoxs() {
 		return boxs;
 	}
@@ -53,6 +58,13 @@ public class Storehouse extends Amas<World>{
 	}
 
 
+	/**
+	 * Return all the agents in an area
+	 * 
+	 * @param areaByPosition
+	 * 
+	 * @return all the agents
+	 */
 	public Robot[] getAgentsInArea(Area areaByPosition) {
 		List<Robot> res = new ArrayList<>();
 		for (Agent<?, World> agent : agents) {
@@ -62,6 +74,11 @@ public class Storehouse extends Amas<World>{
 		return res.toArray(new Robot[0]);
 	}
 	
+	/**
+	 * Return if a robot is in an area
+	 * @param areaByPosition
+	 * @return true if there is one
+	 */
 	public boolean isRobotInArea(Area areaByPosition){
 		boolean ret = false;
 		for (Agent<?, World> agent : agents) {
@@ -71,6 +88,9 @@ public class Storehouse extends Amas<World>{
 		return ret;
 	}
 
+	/**
+	 * No longer used
+	 */
 	public void releaseBox() {
 		Random r = new Random();
 		currentNbBox++;
@@ -91,6 +111,11 @@ public class Storehouse extends Amas<World>{
 	}
 	
 
+	/**
+	 * No longer used
+	 * @param dx
+	 * @param dy
+	 */
 	public void pickingBox(int dx, int dy) {
 		/*int toRemove = -1;
 		for(int i = 0; i < boxs.size(); i++){
