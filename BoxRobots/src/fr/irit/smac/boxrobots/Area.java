@@ -23,6 +23,7 @@ public class Area {
 	private int y;
 	
 	private int critic;
+	private int claimCritic;
 
 	private boolean isWall;
 
@@ -41,6 +42,7 @@ public class Area {
 		this.x = x;
 		this.y = y;
 		this.critic = 0;
+		this.claimCritic = 0;
 		Random r = new Random();
 		if(x >= 30 && x < 50 && y >= 1 && y <= 58){
 			isWall = true;
@@ -178,7 +180,19 @@ public class Area {
 		this.critic--;
 	}
 	
+
+	public void addClaimCritic(){
+		this.claimCritic++;
+	}
+	
+	public void removeClaimCritic(){
+		this.claimCritic--;
+	}
 	public int getCritic(){
 		return this.critic;
+	}
+
+	public int getClaimCritic() {
+		return this.claimCritic;
 	}
 }

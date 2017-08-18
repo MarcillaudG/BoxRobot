@@ -32,6 +32,8 @@ public class Robot extends Agent<Storehouse, World>{
 
 	private boolean isReturning;
 
+	private boolean isInCorridor;
+
 	private Area closestBox;
 
 	private Direction currentDirection;
@@ -105,6 +107,7 @@ public class Robot extends Agent<Storehouse, World>{
 		this.carryingQueue = new LinkedList<Area>();
 		this.claimQueue = new LinkedList<Area>();
 		this.previousArea = null;
+		this.isInCorridor = false;
 		Random r = new Random();
 		if(r.nextInt(2)%2==0){
 			this.dx = r.nextInt(29);
@@ -183,14 +186,19 @@ public class Robot extends Agent<Storehouse, World>{
 			break;
 		case RANDOM:
 			random();
+			break;
 		case CARLO:
 			carlo();
+			break;
 		default:
 			break;
 		}
 	}
 
 
+	/**
+	 * The method use when the Behaviour is on Carlo
+	 */
 	private void carlo(){
 		if(this.amas.isInClaimZone(this.currentArea) && !this.isCarrying){
 			this.isPicking = true;
@@ -204,6 +212,9 @@ public class Robot extends Agent<Storehouse, World>{
 				this.lastDir = -1;
 			}
 			else{
+				if(this.modules.contains(Module.MEMORY)){
+					checkCorridor();
+				}
 				checkDir();
 				// Si on est pas dans l'etat de retour on verifie de ne pas etre dans une impasse
 				if(!this.isReturning){
@@ -217,16 +228,48 @@ public class Robot extends Agent<Storehouse, World>{
 					this.targetArea = findWayBack();
 				}
 				else{
-					monteCarlo();
+					monteCarloBis();
 				}
 			}
 		}
 		if(this.targetArea == null){
 			this.dir = lastDir;
+			this.lastDir = -1;
 			this.previousArea = this.currentArea;
 		}
 	}
 
+	/**
+	 * The robot check if it is in a corridor
+	 */
+	private void checkCorridor() {
+		int nbWay = 0;
+		for(int i = 0; i < 4; i++){
+			if(targetsPossible[i] != null && !targetsPossible[i].getIsWall()){
+				nbWay++;
+			}
+		}
+		if(!this.isInCorridor){
+			if(nbWay == 2){
+				this.isInCorridor = true;
+			}
+		}else{
+			if(nbWay > 2){
+				this.isInCorridor = false;
+				if(this.isReturning){
+					this.addToQueue(this.currentArea);
+				}
+				else{
+					this.addToQueue(this.currentArea, !this.isCarrying);
+				}
+			}
+		}
+	}
+
+
+	/**
+	 * Forbid to keep the back direction in dir
+	 */
 	private void checkDir() {
 		if(this.isCarrying){
 			if(dir == 3){
@@ -241,7 +284,330 @@ public class Robot extends Agent<Storehouse, World>{
 		}
 	}
 
+	/**
+	 * Calcul of Monte Carlo
+	 */
+	private void monteCarloBis(){
+		Integer[] prob = {0,0,0,0};
 
+		prob = firstProba();
+
+		prob = memoryView(prob);
+
+		/*if(this.previousArea != null){
+			if(this.previousArea.getX() < this.dx){
+				prob[3] = 1;
+			}
+			if(this.previousArea.getX() > this.dx){
+				prob[1] = 1;
+			}
+			if(this.previousArea.getY() < this.dy){
+				prob[0] = 1;
+			}
+			if(this.previousArea.getY() > this.dy){
+				prob[1] = 1;
+			}
+		}*/
+		for(int i = 0; i < 4; i++){
+			if(!checkFreedom(this.targetsPossible[i])){
+				prob[i] *= 0;
+			}
+		}
+
+		if(this.modules.contains(Module.DIRECT)){
+			if(this.isCarrying){
+				if(prob[1] == 0){
+					if(this.dir == 0 && prob[0] > 0){
+						this.targetArea = this.targetsPossible[0];
+					}
+					if(this.dir == 2 && prob[2] > 0){
+						this.targetArea = this.targetsPossible[2];
+					}
+				}
+			}
+			else{
+				if(prob[3] == 0){
+					if(this.dir == 0 && prob[0] > 0){
+						this.targetArea = this.targetsPossible[0];
+					}
+					if(this.dir == 2 && prob[2] > 0){
+						this.targetArea = this.targetsPossible[2];
+					}
+				}
+			}
+		}
+
+		this.targetArea = tirageBis(prob);
+	}
+
+	/**
+	 * With the table of probabilities, use a random to get a target Area 
+	 * 
+	 * @param prob
+	 * 		The table of probabilities
+	 * @return targetArea
+	 */
+	private Area tirageBis(Integer[] prob) {
+		int sumProb = 0;
+		int max = 0;
+		int ind = -1;
+		for(int i = 0; i < 4; i++){
+			if(prob[i]>max){
+				max = prob[i];
+				ind = i;
+			}
+			if(prob[i] > 0){
+				sumProb+=prob[i];
+			}
+			else{
+				prob[i] = 0;
+			}
+		}
+		if(sumProb == 0){
+			if(this.lastDir  != -1 && checkFreedom(this.targetsPossible[this.lastDir])){
+				Area target = this.targetsPossible[this.lastDir];
+				this.dir = this.lastDir;
+				this.lastDir = -1;
+				return target;
+			}
+			else{
+				return null;
+			}
+		}
+		else{
+			if(ind != -1 && ((this.isCarrying && !checkFreedom(this.targetsPossible[1]))
+					||(!this.isCarrying && !checkFreedom(this.targetsPossible[3])))){
+				this.dir = ind;
+				this.lastDir = (ind+2)%4;
+				return this.targetsPossible[ind];
+			}
+			if(sumProb > 0){
+				int result = new Random().nextInt((int)sumProb);
+				if(prob[0] > 0 && result > 0 && result <= prob[0]){
+					if(checkDeadEnd() == 1 && modules.contains(Module.MEMORY)){
+						if(this.dir != 0){
+							this.addToQueue(this.currentArea);
+						}
+					}
+					this.dir = 0;
+					this.lastDir = 2;
+					return this.targetsPossible[0];
+				}
+				if(prob[1] > 0 && result > prob[0] && result <= prob[1]+prob[0]){
+					if(checkDeadEnd() == 1 && modules.contains(Module.MEMORY)){
+						if(this.dir != 1){
+							this.addToQueue(this.currentArea);
+						}
+					}
+					this.dir = 1;
+					this.lastDir = 3;
+					return this.targetsPossible[1];
+				}
+				if(prob[2] > 0 && result > prob[0]+prob[1] && result <= prob[2]+ prob[1]+prob[0]){
+					if(checkDeadEnd() == 1 && modules.contains(Module.MEMORY)){
+						if(this.dir != 2){
+							this.addToQueue(this.currentArea);
+						}
+					}
+					this.dir = 2;
+					this.lastDir = 0;
+					return this.targetsPossible[2];
+				}
+				if(prob[3] > 0 && result > prob[0]+prob[1]+prob[2] && result <= sumProb){
+					if(checkDeadEnd() == 1 && modules.contains(Module.MEMORY)){
+						if(this.dir != 3){
+							this.addToQueue(this.currentArea);
+						}
+					}
+					this.dir = 3;
+					this.lastDir = 1;
+					return this.targetsPossible[3];
+				}
+				return null;
+			}
+			else
+				return null;
+
+		}
+
+	}
+
+/**
+ * Modify the probabilities with the memory
+ * 
+ * @param prob
+ * 			The table of probabilities
+ * 
+ * @return the table of probabilities
+ */
+	private Integer[] memoryView(Integer[] prob) {
+		Queue<Area> tmpQueue = null;
+		if(this.isCarrying){
+			tmpQueue = this.carryingQueue;
+		}
+		else{
+			tmpQueue = this.claimQueue;
+		}
+		Integer[] ret = prob;
+		Integer[] reject = {0,0,0,0};
+		for(Area ar : tmpQueue){
+			// Case of left
+			if(ar.getX() < this.dx && ar.getX() > this.dx - VIEW_RADIUS*3){
+				int diffx = Math.abs(this.dx-ar.getX());
+				int diffy = Math.abs(this.dy-ar.getY());
+				if(ar.getY() <= this.dy +3*VIEW_RADIUS - diffx && ar.getY() >= this.dy - 3*VIEW_RADIUS - diffx  ){
+					if(diffx+diffy < VIEW_RADIUS){
+						reject[3] += VIEW_RADIUS - (diffx+diffy);
+					}
+					else{
+						reject[3] += 1;
+					}
+				}
+			}
+			//Case of Right
+			if(ar.getX() > this.dx && ar.getX() < this.dx + VIEW_RADIUS*3){
+				int diffx = Math.abs(this.dx-ar.getX());
+				int diffy = Math.abs(this.dy-ar.getY());
+				if(ar.getY() <= this.dy +3*VIEW_RADIUS - diffx && ar.getY() >= this.dy - 3*VIEW_RADIUS - diffx  ){
+					if(diffx+diffy < VIEW_RADIUS){
+						reject[1] += VIEW_RADIUS - (diffx+diffy);
+					}
+					else{
+						reject[1] += 1;
+					}
+				}
+			}
+			//Case of Up
+			if(ar.getY() < this.dy && ar.getY() > this.dy - VIEW_RADIUS*3){
+				int diffx = Math.abs(this.dx-ar.getX());
+				int diffy = Math.abs(this.dy-ar.getY());
+				if(ar.getX() <= this.dx +3*VIEW_RADIUS - diffy && ar.getX() >= this.dx - 3*VIEW_RADIUS - diffy  ){
+					if(diffx+diffy < VIEW_RADIUS){
+						reject[0] += VIEW_RADIUS - (diffx+diffy);
+					}
+					else{
+						reject[0] += 1;
+					}
+				}
+			}
+			//Case of Down
+			if(ar.getY() > this.dy && ar.getY() < this.dy + VIEW_RADIUS*3){
+				int diffx = Math.abs(this.dx-ar.getX());
+				int diffy = Math.abs(this.dy-ar.getY());
+				if(ar.getX() <= this.dx +3*VIEW_RADIUS - diffy && ar.getX() >= this.dx - 3*VIEW_RADIUS - diffy  ){
+					if(diffx+diffy < VIEW_RADIUS){
+						reject[2] += VIEW_RADIUS - (diffx+diffy);
+					}
+					else{
+						reject[2] += 1;
+					}
+				}
+			}
+		}
+		// We add the reject to the other three
+		for(int i = 0; i < 4; i++){
+			for(int j = 0; j < 4; j++){
+				if(i != j && i != this.lastDir){
+					ret[i] += reject[j];
+				}
+			}
+		}
+		return ret;
+	}
+
+
+	/**
+	 * Initialize the probabilities 
+	 * 
+	 * @return a table of probabilities
+	 */
+	private Integer[] firstProba() {
+		Integer[] ret = {0,0,0,0};
+		if(this.isCarrying){
+			double tox = World.RELEASE[0] - this.dx;
+			double toUpy = World.RELEASE[2] - this.dy;
+			double toDowny = this.dy -World.RELEASE[3];
+			if(tox > 0){
+				ret[1] = 15;
+			}
+			else{
+				ret[1] = 1;
+			}
+			if((toUpy > toDowny && toUpy > 0)){
+				ret[2] = 10;
+				ret[0] = 1;
+			}
+			else{
+				ret[2]= 1;
+				if((toUpy < toDowny && toDowny > 0)){
+					ret[0] = 10;
+				}
+				else{
+					ret[0] = 1;
+				}
+			}
+			ret[3] = 1;
+			if(this.lastDir != -1){
+				ret[this.lastDir] = 0;
+			}
+			if(this.modules.contains(Module.DIRECT) && this.targetsPossible[1].getIsWall()){
+				if(this.dir == 0 && this.targetsPossible[0] != null && !this.targetsPossible[0].getIsWall()){
+					ret[0] = 20;
+					ret[3] = 0;
+					ret[2] = 0;
+				}
+				if(this.dir == 2 && this.targetsPossible[2] != null &&  !this.targetsPossible[2].getIsWall()){
+					ret[2] = 20;
+					ret[3] = 0;
+					ret[0] = 0;
+				}
+			}
+
+		}
+		else{
+			double tox =this.dx - World.CLAIM[1];
+			double toUpy = World.CLAIM[2] - this.dy;
+			double toDowny = this.dy -World.CLAIM[3];
+			if(tox > 0){
+				ret[3] = 15;
+			}
+			else{
+				ret[3] = 1;
+			}
+			if((toUpy > toDowny && toUpy > 0) ){
+				ret[2] = 10;
+				ret[0] = 1;
+			}
+			else{
+				ret[2]= 1;
+				if((toUpy < toDowny && toDowny > 0)){
+					ret[0] = 10;
+				}
+				else{
+					ret[0] = 1;
+				}
+			}
+			ret[1] = 1;
+			if(this.modules.contains(Module.DIRECT) && this.targetsPossible[3].getIsWall()){
+				if(this.dir == 0 && this.targetsPossible[0] != null && !this.targetsPossible[0].getIsWall()){
+					ret[0] = 20;
+					ret[1] = 0;
+					ret[2] = 0;
+				}
+				if(this.dir == 2 && this.targetsPossible[2] != null && !this.targetsPossible[2].getIsWall()){
+					ret[2] = 20;
+					ret[1] = 0;
+					ret[0] = 0;
+				}
+			}
+		}
+		return ret;
+	}
+
+
+	/**
+	 * Calculate the target Area with Monte Carlo
+	 */
 	private void monteCarlo() {
 		Double[] prob = {0.0,0.0,0.0,0.0};
 		Queue<Area> tmpQueue = null;
@@ -344,6 +710,13 @@ public class Robot extends Agent<Storehouse, World>{
 	}
 
 
+	/**
+	 * Modify the probabilities
+	 * 
+	 * @param prob
+	 * 
+	 * @return the new table of probabilities
+	 */
 	private Double[] lookForCritic(Double[] prob) {
 		Queue<Area> tmpQueue = null;
 		if(this.isCarrying){
@@ -391,6 +764,13 @@ public class Robot extends Agent<Storehouse, World>{
 	}
 
 
+	/**
+	 * Calculate the target Area
+	 * 
+	 * @param prob
+	 * 		The probabilities
+	 * @return The targetArea
+	 */
 	private Area tirage(Double[] prob) {
 		double sumProb = 0.0;
 		for(int i = 0; i < 4; i++){
@@ -450,6 +830,9 @@ public class Robot extends Agent<Storehouse, World>{
 	}
 
 
+	/**
+	 * Check if the robot still have to go back
+	 */
 	private void checkStillReturning() {
 		int nbWay = 0;
 		Queue<Area> tmpQueue = null;
@@ -483,6 +866,11 @@ public class Robot extends Agent<Storehouse, World>{
 	}
 
 
+	/**
+	 * Check if it is a deadEnd
+	 * 
+	 * @return the number of way 
+	 */
 	private int checkDeadEnd() {
 		int nbWay = 0;
 		Queue<Area> tmpQueue = null;
@@ -1671,20 +2059,53 @@ public class Robot extends Agent<Storehouse, World>{
 		if(this.isCarrying){
 			if(this.carryingQueue.size()==MEMORY_SIZE){
 				Area toRemove = this.carryingQueue.poll();
-				if(toRemove != null)
+				if(toRemove != null){
 					this.amas.getEnvironment().getAreaByPosition(toRemove.getX(), toRemove.getY()).removeCritic();
+				}
 			}
 			this.carryingQueue.offer(ar);
+			this.amas.getEnvironment().getAreaByPosition(ar.getX(), ar.getY()).addCritic();
 		}
 		else{
 			if(this.claimQueue.size()==MEMORY_SIZE){
 				Area toRemove = this.claimQueue.poll();
-				if(toRemove != null)
-					this.amas.getEnvironment().getAreaByPosition(toRemove.getX(), toRemove.getY()).removeCritic();
+				if(toRemove != null){
+					this.amas.getEnvironment().getAreaByPosition(toRemove.getX(), toRemove.getY()).removeClaimCritic();
+				}
 			}
 			this.claimQueue.offer(ar);
+			this.amas.getEnvironment().getAreaByPosition(ar.getX(), ar.getY()).addClaimCritic();
 		}
-		this.amas.getEnvironment().getAreaByPosition(ar.getX(), ar.getY()).addCritic();
+	}
+
+
+	/**
+	 * Add an Area to the critical queue depending of the state of the robot
+	 * 
+	 * @param ar
+	 * 			The area to add
+	 */
+	private void addToQueue(Area ar,boolean carry){
+		if(carry){
+			if(this.carryingQueue.size()==MEMORY_SIZE){
+				Area toRemove = this.carryingQueue.poll();
+				if(toRemove != null){
+					this.amas.getEnvironment().getAreaByPosition(toRemove.getX(), toRemove.getY()).removeCritic();
+				}
+			}
+			this.carryingQueue.offer(ar);
+			this.amas.getEnvironment().getAreaByPosition(ar.getX(), ar.getY()).addCritic();
+		}
+		else{
+			if(this.claimQueue.size()==MEMORY_SIZE){
+				Area toRemove = this.claimQueue.poll();
+				if(toRemove != null){
+					this.amas.getEnvironment().getAreaByPosition(toRemove.getX(), toRemove.getY()).removeClaimCritic();
+				}
+			}
+			this.claimQueue.offer(ar);
+			this.amas.getEnvironment().getAreaByPosition(ar.getX(), ar.getY()).addClaimCritic();
+		}
 	}
 
 	private boolean opposeTO(Direction d1, Direction d2){

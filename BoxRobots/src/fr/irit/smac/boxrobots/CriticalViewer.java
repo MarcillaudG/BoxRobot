@@ -47,12 +47,14 @@ public class CriticalViewer implements Schedulable {
 	 * Unique id of the drawable ui
 	 */
 	private final int id = uniqueIndex++;
-	
+
 	private JFrame frame;
 
 	protected Storehouse _storehouse;
 
 	private ArrayList<Agent<?, World>> robots;
+
+	private boolean claim = false;
 
 	/**
 	 * Create and initialize the frame and the canvas
@@ -112,7 +114,81 @@ public class CriticalViewer implements Schedulable {
 
 		canvas.setIgnoreRepaint(true);
 		canvas.setPreferredSize(new Dimension(800, 650));
-		this.frame = new JFrame("View of critical zone");
+		this.frame = new JFrame("View of critical zone of CARRYING");
+		this.frame.setPreferredSize(new Dimension(800, 650));
+		this.frame.setMinimumSize(new Dimension(800, 650));
+		this.frame.add(this.canvas);
+		this.frame.setVisible(true);
+
+		scheduler = new Scheduler(this);
+
+	}
+
+
+	/**
+	 * Create and initialize the frame and the canvas
+	 * 
+	 * @param _scheduling
+	 *            the scheduling mode
+	 */
+	public CriticalViewer(boolean claim) {
+		onInitialConfiguration();
+		this.claim = claim;
+		canvas = new JPanel() {
+			protected void paintComponent(java.awt.Graphics g) {
+
+				Image buffer = createImage(800, 600);
+				Graphics graphics = buffer.getGraphics();
+				graphics.setColor(Color.BLACK);
+				graphics.fillRect(0, 0, 800, 600);
+				onDraw((Graphics2D) graphics);
+				g.drawImage(buffer, 0, 0, null);
+			}
+		};
+		canvas.addMouseListener(new MouseListener() {
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e) {
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e) {
+
+			}
+
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				onClick(e.getX(), e.getY());
+			}
+		});
+		canvas.addMouseMotionListener(new MouseMotionListener() {
+
+			@Override
+			public void mouseMoved(MouseEvent e) {
+
+			}
+
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				onMouseDragged(e.getX(), e.getY());
+			}
+		});
+
+		canvas.setIgnoreRepaint(true);
+		canvas.setPreferredSize(new Dimension(800, 650));
+		if(claim){
+			this.frame = new JFrame("View of critical zone of CLAIM");
+		}else{
+			this.frame = new JFrame("View of critical zone of CARRYING");
+		}
 		this.frame.setPreferredSize(new Dimension(800, 650));
 		this.frame.setMinimumSize(new Dimension(800, 650));
 		this.frame.add(this.canvas);
@@ -149,11 +225,21 @@ public class CriticalViewer implements Schedulable {
 			for(int i = 0; i < World.HEIGHT; i++){
 				for(int j = 0; j < World.WIDTH;j++){
 					Area ar = this._storehouse.getEnvironment().getAreas()[i][j];
-					int critic = ar.getCritic();
-					if(critic > 40){
-						critic = 40;
+					int critic =0;
+					if(this.claim){
+						critic = ar.getClaimCritic();
+						if(critic > 40){
+							critic = 40;
+						}
+						graphics2d.setColor(new Color(200-5*critic,200,200-5*critic));
 					}
-					graphics2d.setColor(new Color(200,200-5*critic,200-5*critic));
+					else{
+						critic = ar.getCritic();
+						if(critic > 40){
+							critic = 40;
+						}
+						graphics2d.setColor(new Color(200,200-5*critic,200-5*critic));
+					}
 					graphics2d.fillRect((int)RobotViewer.discreteToTopContinuous(ar.getX()) , (int)RobotViewer.discreteToTopContinuous(ar.getY()),
 							RobotViewer.AREA_SIZE, RobotViewer.AREA_SIZE);
 				}
@@ -178,7 +264,7 @@ public class CriticalViewer implements Schedulable {
 			this.robots = agents;
 			graphics2d.setColor(Color.RED);
 			graphics2d.setStroke(s);
-			
+
 
 			//Draw the claim zone
 			graphics2d.setColor(Color.BLUE);

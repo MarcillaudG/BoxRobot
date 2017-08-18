@@ -78,6 +78,8 @@ public class RobotViewer extends DrawableUI{
 
 	private CriticalViewer criticalWindow;
 
+	private CriticalViewer criticalClaimWindow;
+
 
 	public RobotViewer() {
 		super(Scheduling.UI);
@@ -496,6 +498,20 @@ public class RobotViewer extends DrawableUI{
 		}
 		else{
 			this.criticalWindow.getScheduler().step();
+		}
+		
+
+		if(this.criticalClaimWindow == null){
+			this.criticalClaimWindow = new CriticalViewer(true){
+
+				protected void onInitialConfiguration() {
+					this._storehouse = storehouse;
+				}
+			};
+			this.criticalClaimWindow.start();
+		}
+		else{
+			this.criticalClaimWindow.getScheduler().step();
 		}
 	}
 
